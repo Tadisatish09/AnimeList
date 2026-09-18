@@ -32,6 +32,10 @@ export default function Dashboard() {
   const [searching, setSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
+  // Live Dynamic Trending Anime from Jikan API
+  const [trendingAnime, setTrendingAnime] = useState([]);
+  const [loadingTrending, setLoadingTrending] = useState(false);
+
   const [watchlist, setWatchlist] = useState([]);
   const [watchedList, setWatchedList] = useState([]);
   const [watchedSort, setWatchedSort] = useState('recent');
@@ -48,6 +52,22 @@ export default function Dashboard() {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3500);
   };
+
+  // Fetch Live Trending Anime from Jikan/Kitsu API
+  useEffect(() => {
+    const fetchTrending = async () => {
+      setLoadingTrending(true);
+      try {
+        const res = await animeApi.getTrending(5);
+        setTrendingAnime(res.data.data || []);
+      } catch (err) {
+        console.error('Failed to load trending anime:', err);
+      } finally {
+        setLoadingTrending(false);
+      }
+    };
+    fetchTrending();
+  }, []);
 
   // Load Watchlist & Watched Lists
   const fetchUserData = async () => {
@@ -395,28 +415,109 @@ export default function Dashboard() {
                 <p style={{ color: 'var(--text-muted)' }}>Searching external Anime database...</p>
               </div>
             ) : !hasSearched ? (
-              <div className="glass-panel" style={{ padding: '48px 24px', textAlign: 'center' }}>
-                <Sparkles size={40} style={{ color: 'var(--primary)', marginBottom: '14px' }} />
-                <h3 style={{ fontSize: '1.35rem', color: '#fff', marginBottom: '8px' }}>Search & Discover Anime</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', maxWidth: '480px', margin: '0 auto 24px' }}>
-                  Type any anime title above or tap a trending suggestion to find official cover posters, MAL ratings, and add to your vault.
-                </p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
-                  {['Solo Leveling', 'Attack on Titan', 'Jujutsu Kaisen', 'Demon Slayer', 'One Piece', 'Death Note', 'Chainsaw Man'].map((tag) => (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => {
-                        setSearchQuery(tag);
-                        handleSearch(tag);
-                      }}
-                      className="btn btn-secondary btn-sm"
-                      style={{ borderRadius: '9999px', fontSize: '0.82rem' }}
-                    >
-                      🔥 {tag}
-                    </button>
-                  ))}
+              <div className="glass-panel" style={{ padding: '40px 24px', textAlign: 'center' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }} className="badge badge-gold">
+                  <Flame size={14} /> Live Top Trending Anime
                 </div>
+                <h3 style={{ fontSize: '1.4rem', color: '#fff', marginBottom: '8px' }}>
+                  Discover Popular & Trending Anime
+                </h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', maxWidth: '520px', margin: '0 auto 24px' }}>
+                  Search for any title above or tap one of the live top 5 trending anime below fetched directly from the database:
+                </p>
+
+                {loadingTrending ? (
+                  <div style={{ padding: '20px 0' }}>
+                    <div className="spinner" style={{ margin: '0 auto 10px' }} />
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>Loading trending anime...</p>
+                  </div>
+                ) : trendingAnime.length > 0 ? (
+                  <div>
+                    {/* Top 5 Trending Pills */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center', marginBottom: '32px' }}>
+                      {trendingAnime.slice(0, 5).map((anime, idx) => (
+                        <button
+                          key={anime.mal_id || anime.title}
+                          type="button"
+                          onClick={() => {
+                            setSearchQuery(anime.title);
+                            handleSearch(anime.title);
+                          }}
+                          className="btn btn-secondary btn-sm"
+                          style={{
+                            borderRadius: '9999px',
+                            fontSize: '0.85rem',
+                            padding: '8px 16px',
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                          }}
+                        >
+                          <span style={{ color: 'var(--gold)', fontWeight: 700 }}>#{idx + 1}</span> {anime.title}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Top 5 Trending Poster Cards Preview */}
+                    <div className="anime-grid" style={{ marginTop: '16px' }}>
+                      {trendingAnime.slice(0, 5).map((anime) => {
+                        const onWatchlist = isInWatchlist(anime.mal_id, anime.title);
+                        const isAlreadyWatched = isWatched(anime.mal_id, anime.title);
+
+                        return (
+                          <div key={anime.mal_id || anime.title} className="anime-card">
+                            <div className="poster-container">
+                              {anime.image_url ? (
+                                <img src={anime.image_url} alt={anime.title} className="poster-img" loading="lazy" />
+                              ) : (
+                                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)' }}>
+                                  No Cover
+                                </div>
+                              )}
+                              <div className="poster-overlay" />
+                              {anime.rating > 0 && (
+                                <div className="poster-rating">
+                                  <Star size={12} fill="#fbbf24" />
+                                  <span>{anime.rating}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="anime-card-content">
+                              <div>
+                                <h4 className="anime-title" title={anime.title}>{anime.title}</h4>
+                                <p className="anime-meta">
+                                  {anime.episodes ? `${anime.episodes} Episodes` : 'Series'} • Trending
+                                </p>
+                              </div>
+
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                                <button
+                                  onClick={() => handleAddToWatchlist(anime)}
+                                  disabled={onWatchlist || isAlreadyWatched}
+                                  className={`btn btn-sm ${onWatchlist ? 'btn-secondary' : 'btn-primary'}`}
+                                >
+                                  <Bookmark size={14} />
+                                  <span>{onWatchlist ? 'In Watchlist' : 'Add to Watchlist'}</span>
+                                </button>
+
+                                <button
+                                  onClick={() => {
+                                    setSelectedAnimeForRating(anime);
+                                    setIsEditingWatched(false);
+                                  }}
+                                  className={`btn btn-sm ${isAlreadyWatched ? 'btn-secondary' : 'btn-cyan'}`}
+                                >
+                                  <CheckCircle2 size={14} />
+                                  <span>{isAlreadyWatched ? 'Watched' : 'Mark Watched'}</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : searchResults.length === 0 ? (
               <div className="glass-panel" style={{ padding: '48px', textAlign: 'center' }}>

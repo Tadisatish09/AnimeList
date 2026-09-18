@@ -25,6 +25,25 @@ async function search(req, res) {
   }
 }
 
+async function getTrending(req, res) {
+  try {
+    const limit = parseInt(req.query.limit, 10) || 6;
+    const results = await animeService.getTrendingAnime(limit);
+    return res.status(200).json({
+      success: true,
+      count: results.length,
+      data: results,
+    });
+  } catch (error) {
+    console.error('Error fetching trending anime:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error fetching trending anime',
+      error: error.message,
+    });
+  }
+}
+
 async function getDetails(req, res) {
   try {
     const { malId } = req.params;
@@ -53,5 +72,6 @@ async function getDetails(req, res) {
 
 module.exports = {
   search,
+  getTrending,
   getDetails,
 };

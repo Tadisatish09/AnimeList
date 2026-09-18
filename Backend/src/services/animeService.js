@@ -100,6 +100,64 @@ async function searchAnime(query, limit = 10) {
 }
 
 /**
+ * Fetches top trending/popular anime dynamically.
+ * @param {number} limit 
+ * @returns {Promise<Array>}
+ */
+async function getTrendingAnime(limit = 6) {
+  // 1. Try Jikan top anime
+  try {
+    const jikanRes = await axios.get('https://api.jikan.moe/v4/top/anime', {
+      params: { filter: 'bypopularity', limit: limit },
+      timeout: 4000,
+      headers: { 'User-Agent': 'AnimeTracker/1.0' },
+    });
+
+    if (jikanRes.data && Array.isArray(jikanRes.data.data)) {
+      return jikanRes.data.data.map((item) => ({
+        mal_id: item.mal_id,
+        title: item.title_english || item.title || 'Unknown Title',
+        original_title: item.title,
+        image_url: item.images?.jpg?.large_image_url || item.images?.jpg?.image_url || '',
+        rating: item.score || 0,
+        episodes: item.episodes || null,
+        status: item.status || 'Unknown',
+      }));
+    }
+  } catch (jikanErr) {
+    console.warn('Jikan top anime failed, falling back to Kitsu trending:', jikanErr.message);
+  }
+
+  // 2. Fallback to Kitsu trending anime
+  try {
+    const kitsuRes = await axios.get('https://kitsu.io/api/edge/trending/anime', {
+      params: { 'page[limit]': limit },
+      timeout: 5000,
+    });
+
+    if (kitsuRes.data && Array.isArray(kitsuRes.data.data)) {
+      return kitsuRes.data.data.slice(0, limit).map((item) => {
+        const attr = item.attributes || {};
+        const score = attr.averageRating ? Math.round((parseFloat(attr.averageRating) / 10) * 10) / 10 : 0;
+        return {
+          mal_id: parseInt(item.id, 10),
+          title: attr.canonicalTitle || attr.titles?.en || attr.titles?.en_jp || 'Unknown Title',
+          original_title: attr.titles?.ja_jp || attr.canonicalTitle,
+          image_url: attr.posterImage?.large || attr.posterImage?.medium || '',
+          rating: score,
+          episodes: attr.episodeCount || null,
+          status: attr.status || 'Unknown',
+        };
+      });
+    }
+  } catch (kitsuErr) {
+    console.error('Failed to fetch trending anime:', kitsuErr.message);
+  }
+
+  return [];
+}
+
+/**
  * Fetches single anime details by ID with Jikan -> Kitsu fallback.
  * @param {number|string} malId 
  * @returns {Promise<Object>}
@@ -162,5 +220,6 @@ async function getAnimeById(malId) {
 
 module.exports = {
   searchAnime,
+  getTrendingAnime,
   getAnimeById,
 };

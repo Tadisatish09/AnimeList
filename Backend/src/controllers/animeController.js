@@ -67,14 +67,16 @@ async function getOngoing(req, res) {
 async function getSchedule(req, res) {
   try {
     const day = req.query.day || 'monday';
+    const weekOffset = parseInt(req.query.weekOffset ?? req.query.week_offset, 10) || 0;
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 20;
 
-    const results = await animeService.getWeeklySchedule(day, page, limit);
+    const results = await animeService.getWeeklySchedule(day, weekOffset, page, limit);
     return res.status(200).json({
       success: true,
       day: results.day,
       date: results.date,
+      weekOffset: results.weekOffset,
       count: results.data.length,
       data: results.data,
     });

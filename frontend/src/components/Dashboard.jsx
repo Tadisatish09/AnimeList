@@ -55,22 +55,24 @@ const WEEKDAYS = [
   { key: 'sunday', label: 'Sunday', short: 'Sun' },
 ];
 
-function getWeekdayDates() {
-  const dayKeys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+function getWeekdayDates(offset = 0) {
+  const dayKeys = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
   const now = new Date();
-  const currentDayIndex = now.getDay();
+  const jsDay = now.getDay();
+  const currentDayIndex = (jsDay + 6) % 7; // Monday = 0, Sunday = 6
   const todayKey = dayKeys[currentDayIndex];
 
   return WEEKDAYS.map((day) => {
     const targetIndex = dayKeys.indexOf(day.key);
-    const diff = targetIndex - currentDayIndex;
+    const diff = (targetIndex - currentDayIndex) + (offset * 7);
     const dateObj = new Date(now);
     dateObj.setDate(now.getDate() + diff);
 
     return {
       ...day,
       dateString: dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      isToday: day.key === todayKey,
+      fullDate: dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+      isToday: offset === 0 && day.key === todayKey,
     };
   });
 }
@@ -102,17 +104,31 @@ export default function Dashboard() {
   });
   const [loadingOngoing, setLoadingOngoing] = useState(false);
 
-  // Weekly Schedule State
-  const weekdayDates = useMemo(() => getWeekdayDates(), []);
+  // Weekly Schedule State with Week Navigation (weekOffset: 0 = current week, -1 = previous week, +1 = next week)
+  const [weekOffset, setWeekOffset] = useState(0);
+  const weekdayDates = useMemo(() => getWeekdayDates(weekOffset), [weekOffset]);
   const todayWeekday = useMemo(() => {
-    const dayKeys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    return dayKeys[new Date().getDay()] || 'monday';
+    const dayKeys = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    const currentDayIndex = (new Date().getDay() + 6) % 7;
+    return dayKeys[currentDayIndex] || 'monday';
   }, []);
 
   const [selectedScheduleDay, setSelectedScheduleDay] = useState(todayWeekday);
   const [scheduleAnime, setScheduleAnime] = useState([]);
   const [scheduleDate, setScheduleDate] = useState('');
   const [loadingSchedule, setLoadingSchedule] = useState(false);
+
+  // Week range label (e.g. Sep 7 - Sep 13 (Previous Week))
+  const weekRangeLabel = useMemo(() => {
+    if (weekdayDates.length === 0) return '';
+    const first = weekdayDates[0].dateString;
+    const last = weekdayDates[weekdayDates.length - 1].dateString;
+    if (weekOffset === 0) return `${first} – ${last} (Current Week)`;
+    if (weekOffset === -1) return `${first} – ${last} (Previous Week)`;
+    if (weekOffset < -1) return `${first} – ${last} (${Math.abs(weekOffset)} Weeks Ago)`;
+    if (weekOffset === 1) return `${first} – ${last} (Next Week)`;
+    return `${first} – ${last} (${weekOffset} Weeks Ahead)`;
+  }, [weekdayDates, weekOffset]);
 
   const [watchlist, setWatchlist] = useState([]);
   const [watchedList, setWatchedList] = useState([]);
@@ -174,11 +190,11 @@ export default function Dashboard() {
     fetchOngoing(ongoingPage);
   }, [ongoingPage]);
 
-  // Fetch Weekly Schedule by Day
-  const fetchSchedule = async (day) => {
+  // Fetch Weekly Schedule by Day & weekOffset
+  const fetchSchedule = async (day, offset = weekOffset) => {
     setLoadingSchedule(true);
     try {
-      const res = await animeApi.getSchedule(day, 1, 25);
+      const res = await animeApi.getSchedule(day, offset, 1, 25);
       setScheduleAnime(res.data.data || []);
       setScheduleDate(res.data.date || '');
     } catch (err) {
@@ -191,9 +207,10 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (activeTab === 'schedule') {
-      fetchSchedule(selectedScheduleDay);
+      fetchSchedule(selectedScheduleDay, weekOffset);
     }
-  }, [activeTab, selectedScheduleDay]);
+  }, [activeTab, selectedScheduleDay, weekOffset]);
+
 
 
   // Load Watchlist & Watched Lists
@@ -1105,6 +1122,67 @@ export default function Dashboard() {
               <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
                 Browse anime episodes releasing each day of the week fetched live from the Jikan / MyAnimeList Schedule API.
               </p>
+            </div>
+
+            {/* Week Navigator Controls */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '12px',
+              marginBottom: '18px',
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-color)',
+              padding: '10px 16px',
+              borderRadius: 'var(--radius-md)',
+            }}>
+              <button
+                type="button"
+                onClick={() => setWeekOffset((prev) => prev - 1)}
+                className="btn btn-secondary btn-sm"
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                title="View releases from previous week"
+              >
+                <ChevronLeft size={16} />
+                <span>Previous Week</span>
+              </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Calendar size={17} style={{ color: 'var(--primary)' }} />
+                <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff' }}>
+                  {weekRangeLabel}
+                </span>
+                {weekOffset !== 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setWeekOffset(0)}
+                    className="btn btn-sm"
+                    style={{
+                      background: 'rgba(99, 102, 241, 0.2)',
+                      border: '1px solid var(--primary)',
+                      color: '#a5b4fc',
+                      padding: '3px 10px',
+                      fontSize: '0.78rem',
+                      borderRadius: '9999px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Current Week
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setWeekOffset((prev) => prev + 1)}
+                className="btn btn-secondary btn-sm"
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                title="View releases for next week"
+              >
+                <span>Next Week</span>
+                <ChevronRight size={16} />
+              </button>
             </div>
 
             {/* 7-Day Selector Bar */}

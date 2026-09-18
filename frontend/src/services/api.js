@@ -49,7 +49,7 @@ export const animeApi = {
   search: (query, limit = 12) => api.get('/anime/search', { params: { q: query, limit } }),
   getTrending: (limit = 5) => api.get('/anime/trending', { params: { limit } }),
   getOngoing: (page = 1, limit = 10) => api.get('/anime/ongoing', { params: { page, limit } }),
-  getSchedule: (day = 'monday', page = 1, limit = 20) => api.get('/anime/schedule', { params: { day, page, limit } }),
+  getSchedule: (day = 'monday', weekOffset = 0, page = 1, limit = 20) => api.get('/anime/schedule', { params: { day, weekOffset, page, limit } }),
   getDetails: (malId) => api.get(`/anime/${malId}`),
 };
 

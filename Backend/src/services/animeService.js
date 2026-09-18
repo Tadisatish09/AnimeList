@@ -335,16 +335,18 @@ async function getAnimeById(malId) {
   return null;
 }
 /**
- * Helper to calculate start & end unix timestamps for a given weekday of current week
+ * Helper to calculate start & end unix timestamps for a given weekday and week offset
  */
-function getDayTimestamps(targetDayName) {
-  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+function getDayTimestamps(targetDayName, weekOffset = 0) {
+  const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
   const targetIndex = days.indexOf(targetDayName.toLowerCase());
-  const safeIndex = targetIndex >= 0 ? targetIndex : 1; // default Monday
+  const safeIndex = targetIndex >= 0 ? targetIndex : 0; // default Monday
 
   const now = new Date();
-  const currentDayIndex = now.getDay();
-  const diffDays = safeIndex - currentDayIndex;
+  const jsDay = now.getDay();
+  const currentDayIndex = (jsDay + 6) % 7; // Monday = 0, Sunday = 6
+
+  const diffDays = (safeIndex - currentDayIndex) + (weekOffset * 7);
 
   const targetDate = new Date(now);
   targetDate.setDate(now.getDate() + diffDays);
@@ -357,62 +359,68 @@ function getDayTimestamps(targetDayName) {
     startTimestamp,
     endTimestamp,
     formattedDate: targetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+    fullDate: targetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
   };
 }
 
 /**
- * Fetches anime release schedule for a specific day of the week.
- * Primary: Jikan API (https://api.jikan.moe/v4/schedules?filter=monday)
- * Fallback: AniList GraphQL
+ * Fetches anime release schedule for a specific day of the week and weekOffset (0 = this week, -1 = previous week, +1 = next week).
+ * Primary: Jikan API (for current week)
+ * Fallback / Historical: AniList GraphQL
  * @param {string} dayName - e.g. 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'
+ * @param {number} weekOffset - 0 for current week, -1 for previous week, +1 for next week
  * @param {number} page
  * @param {number} limit
- * @returns {Promise<{ data: Array, day: string, date: string, total: number }>}
+ * @returns {Promise<{ data: Array, day: string, date: string, weekOffset: number, total: number }>}
  */
-async function getWeeklySchedule(dayName = 'monday', page = 1, limit = 20) {
+async function getWeeklySchedule(dayName = 'monday', weekOffset = 0, page = 1, limit = 20) {
   const safeDay = (dayName || 'monday').toLowerCase();
-  const { startTimestamp, endTimestamp, formattedDate } = getDayTimestamps(safeDay);
+  const safeOffset = parseInt(weekOffset, 10) || 0;
+  const { startTimestamp, endTimestamp, formattedDate } = getDayTimestamps(safeDay, safeOffset);
 
-  // 1. Primary: Try Jikan Schedules endpoint (https://api.jikan.moe/v4/schedules?filter=monday)
-  try {
-    const jikanUrl = `https://api.jikan.moe/v4/schedules?filter=${safeDay}`;
-    const jikanRes = await axios.get(jikanUrl, {
-      params: { page: page || 1, limit: limit || 20 },
-      timeout: 4500,
-      headers: { 'User-Agent': 'AnimeWeeklySchedule/1.0' },
-    });
+  // 1. Primary for Current Week (offset = 0): Try Jikan Schedules endpoint (https://api.jikan.moe/v4/schedules?filter=monday)
+  if (safeOffset === 0) {
+    try {
+      const jikanUrl = `https://api.jikan.moe/v4/schedules?filter=${safeDay}`;
+      const jikanRes = await axios.get(jikanUrl, {
+        params: { page: page || 1, limit: limit || 20 },
+        timeout: 4500,
+        headers: { 'User-Agent': 'AnimeWeeklySchedule/1.0' },
+      });
 
-    if (jikanRes.data && Array.isArray(jikanRes.data.data) && jikanRes.data.data.length > 0) {
-      const items = jikanRes.data.data.map((item) => ({
-        mal_id: item.mal_id,
-        title: item.title_english || item.title || 'Unknown Title',
-        original_title: item.title,
-        image_url: item.images?.jpg?.large_image_url || item.images?.jpg?.image_url || '',
-        rating: item.score || 0,
-        episodes: item.episodes || null,
-        status: item.status || 'Currently Airing',
-        broadcast: item.broadcast?.string || `${safeDay.charAt(0).toUpperCase() + safeDay.slice(1)}s`,
-        broadcast_time: item.broadcast?.time || '',
-        broadcast_timezone: item.broadcast?.timezone || 'JST',
-        airing_date: formattedDate,
-        day: safeDay,
-        genres: (item.genres || []).map((g) => g.name),
-        genre: (item.genres || []).map((g) => g.name).join(', '),
-        synopsis: item.synopsis || '',
-      }));
+      if (jikanRes.data && Array.isArray(jikanRes.data.data) && jikanRes.data.data.length > 0) {
+        const items = jikanRes.data.data.map((item) => ({
+          mal_id: item.mal_id,
+          title: item.title_english || item.title || 'Unknown Title',
+          original_title: item.title,
+          image_url: item.images?.jpg?.large_image_url || item.images?.jpg?.image_url || '',
+          rating: item.score || 0,
+          episodes: item.episodes || null,
+          status: item.status || 'Currently Airing',
+          broadcast: item.broadcast?.string || `${safeDay.charAt(0).toUpperCase() + safeDay.slice(1)}s`,
+          broadcast_time: item.broadcast?.time || '',
+          broadcast_timezone: item.broadcast?.timezone || 'JST',
+          airing_date: formattedDate,
+          day: safeDay,
+          genres: (item.genres || []).map((g) => g.name),
+          genre: (item.genres || []).map((g) => g.name).join(', '),
+          synopsis: item.synopsis || '',
+        }));
 
-      return {
-        data: items,
-        day: safeDay,
-        date: formattedDate,
-        total: items.length,
-      };
+        return {
+          data: items,
+          day: safeDay,
+          date: formattedDate,
+          weekOffset: safeOffset,
+          total: items.length,
+        };
+      }
+    } catch (jikanErr) {
+      console.warn(`Jikan schedule for ${safeDay} failed (${jikanErr.message}), falling back to AniList schedule...`);
     }
-  } catch (jikanErr) {
-    console.warn(`Jikan schedule for ${safeDay} failed (${jikanErr.message}), falling back to AniList schedule...`);
   }
 
-  // 2. Fallback: AniList GraphQL Day Schedule
+  // 2. AniList GraphQL Day Schedule (for historical past weeks, future weeks, or Jikan fallback)
   try {
     const query = `
       query ($page: Int, $perPage: Int, $airingAt_greater: Int, $airingAt_lesser: Int) {
@@ -468,6 +476,7 @@ async function getWeeklySchedule(dayName = 'monday', page = 1, limit = 20) {
       data: items,
       day: safeDay,
       date: formattedDate,
+      weekOffset: safeOffset,
       total: items.length,
     };
   } catch (aniErr) {
@@ -478,6 +487,7 @@ async function getWeeklySchedule(dayName = 'monday', page = 1, limit = 20) {
     data: [],
     day: safeDay,
     date: formattedDate,
+    weekOffset: safeOffset,
     total: 0,
   };
 }

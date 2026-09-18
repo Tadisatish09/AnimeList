@@ -10,6 +10,7 @@ const loginRouter = require('./routes/login.js');
 const animeRouter = require('./routes/anime.js');
 const watchlistRouter = require('./routes/watchlist.js');
 const watchedRouter = require('./routes/watched.js');
+const adminRouter = require('./routes/admin.js');
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
@@ -45,6 +46,7 @@ app.use('/api/login', loginRouter);
 app.use('/api/anime', animeRouter);
 app.use('/api/watchlist', watchlistRouter);
 app.use('/api/watched', watchedRouter);
+app.use('/api/admin', adminRouter);
 
 // User Profile Route
 app.get('/api/profile', authMiddleware, (req, res) => {

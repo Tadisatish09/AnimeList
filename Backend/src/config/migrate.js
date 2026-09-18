@@ -1,3 +1,4 @@
+const bcrypt = require('bcrypt');
 const db = require('./database.js');
 
 async function checkAndAddColumn(tableName, columnName, columnDefinition) {
@@ -31,6 +32,10 @@ async function runMigrations() {
         name VARCHAR(50) NOT NULL,
         email VARCHAR(50) NOT NULL UNIQUE,
         password VARCHAR(255) NOT NULL,
+        role VARCHAR(20) DEFAULT 'user',
+        is_active BOOLEAN DEFAULT TRUE,
+        login_count INT DEFAULT 0,
+        last_login DATETIME NULL,
         created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
       )
@@ -41,7 +46,7 @@ async function runMigrations() {
       CREATE TABLE IF NOT EXISTS watch_list (
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NULL,
-        name VARCHAR(75) NULL,
+        name VARCHAR(255) NULL,
         image_url TEXT NULL,
         mal_id INT NULL,
         genre VARCHAR(255) NULL,
@@ -55,7 +60,7 @@ async function runMigrations() {
       CREATE TABLE IF NOT EXISTS watched (
         id INT AUTO_INCREMENT PRIMARY KEY,
         user_id INT NULL,
-        title VARCHAR(75) NULL,
+        title VARCHAR(255) NULL,
         rating INT NOT NULL,
         start_date DATE NULL,
         completed_date DATE NULL,
@@ -79,7 +84,12 @@ async function runMigrations() {
       )
     `);
 
-    // 5. Ensure missing columns exist
+    // 5. Ensure missing columns exist in existing tables
+    await checkAndAddColumn('users', 'role', "VARCHAR(20) DEFAULT 'user'");
+    await checkAndAddColumn('users', 'is_active', "BOOLEAN DEFAULT TRUE");
+    await checkAndAddColumn('users', 'login_count', "INT DEFAULT 0");
+    await checkAndAddColumn('users', 'last_login', "DATETIME NULL");
+
     await checkAndAddColumn('watch_list', 'user_id', 'INT NULL');
     await checkAndAddColumn('watch_list', 'mal_id', 'INT NULL');
     await checkAndAddColumn('watch_list', 'genre', 'VARCHAR(255) NULL');
@@ -99,6 +109,28 @@ async function runMigrations() {
         ('kitsu', 'https://kitsu.io/api/edge/anime', 1)
       `);
       console.log('Seeded default API providers into `api_configs` table.');
+    }
+
+    // 7. Seed default Super Admin account if not existing
+    const [existingAdmin] = await db.promise().query(
+      'SELECT id, role FROM users WHERE email = ? LIMIT 1',
+      ['superadmin@anivault.com']
+    );
+
+    if (existingAdmin.length === 0) {
+      const hashedAdminPassword = await bcrypt.hash('admin123@anivault', 10);
+      await db.promise().query(
+        `INSERT INTO users (name, email, password, role, is_active)
+         VALUES (?, ?, ?, 'superadmin', 1)`,
+        ['Super Admin', 'superadmin@anivault.com', hashedAdminPassword]
+      );
+      console.log('Created default Super Admin user (superadmin@anivault.com)');
+    } else if (existingAdmin[0].role !== 'superadmin') {
+      await db.promise().query(
+        "UPDATE users SET role = 'superadmin', is_active = 1 WHERE email = ?",
+        ['superadmin@anivault.com']
+      );
+      console.log('Updated existing user to Super Admin role');
     }
 
     console.log('Database migrations completed successfully.');

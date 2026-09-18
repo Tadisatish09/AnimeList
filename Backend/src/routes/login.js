@@ -16,12 +16,16 @@ router.post('/', async (req, res) => {
 
   try {
     const [rows] = await db.promise().execute(
-      'SELECT id, name, email, password FROM users WHERE email = ? LIMIT 1',
+      'SELECT id, name, email, password, role, is_active, login_count, last_login FROM users WHERE email = ? LIMIT 1',
       [email]
     );
 
     const user = rows[0];
-    const passwordMatches = user && typeof user.password === 'string'
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+
+    const passwordMatches = typeof user.password === 'string'
       ? await bcrypt.compare(password, user.password)
       : false;
 
@@ -29,10 +33,26 @@ router.post('/', async (req, res) => {
       return res.status(401).json({ message: 'Invalid email or password' });
     }
 
+    // Check if user is active
+    if (user.is_active === 0 || user.is_active === false) {
+      return res.status(403).json({
+        message: 'Your account has been deactivated by the administrator. Please contact support.',
+      });
+    }
+
+    // Update login count and last login timestamp
+    await db.promise().query(
+      'UPDATE users SET login_count = COALESCE(login_count, 0) + 1, last_login = NOW() WHERE id = ?',
+      [user.id]
+    );
+
+    const role = user.role || 'user';
+
     const token = generateToken({
       id: user.id,
       name: user.name,
       email: user.email,
+      role,
     });
 
     return res.status(200).json({
@@ -42,6 +62,10 @@ router.post('/', async (req, res) => {
         id: user.id,
         name: user.name,
         email: user.email,
+        role,
+        is_active: user.is_active !== 0,
+        login_count: (user.login_count || 0) + 1,
+        last_login: new Date().toISOString(),
       },
     });
   } catch (error) {
@@ -76,14 +100,15 @@ router.post('/newuser', async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const [result] = await db.promise().query(
-      'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
-      [name, email, hashedPassword]
+      'INSERT INTO users (name, email, password, role, is_active, login_count, last_login) VALUES (?, ?, ?, ?, ?, ?, NOW())',
+      [name, email, hashedPassword, 'user', 1, 1]
     );
 
     const token = generateToken({
       id: result.insertId,
       name,
       email,
+      role: 'user',
     });
 
     return res.status(201).json({
@@ -93,6 +118,9 @@ router.post('/newuser', async (req, res) => {
         id: result.insertId,
         name,
         email,
+        role: 'user',
+        is_active: true,
+        login_count: 1,
       },
     });
   } catch (err) {

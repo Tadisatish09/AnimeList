@@ -68,4 +68,12 @@ export const watchedApi = {
   deleteWatched: (id) => api.delete(`/watched/${id}`),
 };
 
+// Super Admin Endpoints
+export const adminApi = {
+  getUsers: () => api.get('/admin/users'),
+  getStats: () => api.get('/admin/stats'),
+  updatePassword: (id, password) => api.put(`/admin/users/${id}/password`, { password }),
+  updateStatus: (id, isActive) => api.put(`/admin/users/${id}/status`, { is_active: isActive }),
+};
+
 export default api;

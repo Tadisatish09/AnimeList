@@ -12,13 +12,11 @@ if (!jwtSecret) {
 
 const generateToken = (payload) => jwt.sign(payload, jwtSecret, {
   algorithm: 'HS256',
-  expiresIn: '1h',
- 
+  expiresIn: '24h',
 });
 
 const verifyToken = (token) => jwt.verify(token, jwtSecret, {
   algorithms: ['HS256'],
-  
 });
 
 const authMiddleware = (req, res, next) => {
@@ -39,9 +37,18 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
+const superAdminMiddleware = (req, res, next) => {
+  authMiddleware(req, res, () => {
+    if (!req.user || req.user.role !== 'superadmin') {
+      return res.status(403).json({ message: 'Forbidden: Super Admin access required' });
+    }
+    return next();
+  });
+};
+
 module.exports = {
   generateToken,
   verifyToken,
   authMiddleware,
+  superAdminMiddleware,
 };
-

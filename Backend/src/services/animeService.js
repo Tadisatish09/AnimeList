@@ -55,6 +55,7 @@ async function searchAnime(query, limit = 10) {
         status: item.status || 'Unknown',
         synopsis: item.synopsis || '',
         genres: (item.genres || []).map((g) => g.name),
+        genre: (item.genres || []).map((g) => g.name).join(', '),
         year: item.year || (item.aired?.from ? new Date(item.aired.from).getFullYear() : null),
       }));
     }
@@ -87,12 +88,13 @@ async function searchAnime(query, limit = 10) {
           status: attr.status || 'Unknown',
           synopsis: attr.synopsis || '',
           genres: [],
+          genre: 'Anime',
           year: attr.startDate ? new Date(attr.startDate).getFullYear() : null,
         };
       });
     }
   } catch (kitsuErr) {
-    console.error('Both Jikan and Kitsu APIs failed:', kitsuErr.message);
+    console.error('All anime search APIs failed:', kitsuErr.message);
     throw new Error('Failed to fetch anime results from external services');
   }
 
@@ -164,6 +166,113 @@ async function getTrendingAnime(limit = 6) {
 }
 
 /**
+ * Fetches ongoing / currently airing anime with pagination.
+ * @param {number} page 
+ * @param {number} limit 
+ * @returns {Promise<{ data: Array, pagination: Object }>}
+ */
+async function getOngoingAnime(page = 1, limit = 8) {
+  const safePage = Math.max(1, parseInt(page, 10) || 1);
+  const safeLimit = Math.min(24, Math.max(1, parseInt(limit, 10) || 8));
+
+  // 1. Try Jikan Seasons Now API
+  try {
+    const jikanRes = await axios.get('https://api.jikan.moe/v4/seasons/now', {
+      params: { page: safePage, limit: safeLimit },
+      timeout: 4500,
+      headers: { 'User-Agent': 'AnimeTracker/1.0' },
+    });
+
+    if (jikanRes.data && Array.isArray(jikanRes.data.data)) {
+      const items = jikanRes.data.data.map((item) => ({
+        mal_id: item.mal_id,
+        title: item.title_english || item.title || 'Unknown Title',
+        original_title: item.title,
+        image_url: item.images?.jpg?.large_image_url || item.images?.jpg?.image_url || '',
+        rating: item.score || 0,
+        episodes: item.episodes || null,
+        status: item.status || 'Currently Airing',
+        synopsis: item.synopsis || '',
+        genres: (item.genres || []).map((g) => g.name),
+        genre: (item.genres || []).map((g) => g.name).join(', '),
+        year: item.year || (item.aired?.from ? new Date(item.aired.from).getFullYear() : null),
+      }));
+
+      const pag = jikanRes.data.pagination || {};
+      return {
+        data: items,
+        pagination: {
+          current_page: pag.current_page || safePage,
+          has_next_page: pag.has_next_page ?? true,
+          last_visible_page: pag.last_visible_page || safePage + 1,
+          total_items: pag.items?.total || null,
+        },
+      };
+    }
+  } catch (jikanErr) {
+    console.warn('Jikan seasons now failed, falling back to Kitsu ongoing:', jikanErr.message);
+  }
+
+  // 2. Fallback to Kitsu Ongoing Anime
+  try {
+    const offset = (safePage - 1) * safeLimit;
+    const kitsuRes = await axios.get('https://kitsu.io/api/edge/anime', {
+      params: {
+        'filter[status]': 'current',
+        'page[limit]': safeLimit,
+        'page[offset]': offset,
+        sort: '-userCount',
+      },
+      timeout: 5000,
+    });
+
+    if (kitsuRes.data && Array.isArray(kitsuRes.data.data)) {
+      const totalCount = kitsuRes.data.meta?.count || 400;
+      const totalPages = Math.ceil(totalCount / safeLimit);
+      const items = kitsuRes.data.data.map((item) => {
+        const attr = item.attributes || {};
+        const score = attr.averageRating ? Math.round((parseFloat(attr.averageRating) / 10) * 10) / 10 : 0;
+        return {
+          mal_id: parseInt(item.id, 10),
+          title: attr.canonicalTitle || attr.titles?.en || attr.titles?.en_jp || 'Unknown Title',
+          original_title: attr.titles?.ja_jp || attr.canonicalTitle,
+          image_url: attr.posterImage?.large || attr.posterImage?.medium || '',
+          rating: score,
+          episodes: attr.episodeCount || null,
+          status: 'Currently Airing',
+          synopsis: attr.synopsis || '',
+          genres: [],
+          genre: 'Anime',
+          year: attr.startDate ? new Date(attr.startDate).getFullYear() : null,
+        };
+      });
+
+      return {
+        data: items,
+        pagination: {
+          current_page: safePage,
+          has_next_page: safePage < totalPages,
+          last_visible_page: totalPages,
+          total_items: totalCount,
+        },
+      };
+    }
+  } catch (kitsuErr) {
+    console.error('Failed to fetch ongoing anime from Kitsu fallback:', kitsuErr.message);
+  }
+
+  return {
+    data: [],
+    pagination: {
+      current_page: safePage,
+      has_next_page: false,
+      last_visible_page: safePage,
+      total_items: 0,
+    },
+  };
+}
+
+/**
  * Fetches single anime details by ID with Jikan -> Kitsu fallback.
  * @param {number|string} malId 
  * @returns {Promise<Object>}
@@ -190,6 +299,7 @@ async function getAnimeById(malId) {
         status: item.status || 'Unknown',
         synopsis: item.synopsis || '',
         genres: (item.genres || []).map((g) => g.name),
+        genre: (item.genres || []).map((g) => g.name).join(', '),
         year: item.year || (item.aired?.from ? new Date(item.aired.from).getFullYear() : null),
       };
     }
@@ -214,6 +324,7 @@ async function getAnimeById(malId) {
         status: attr.status || 'Unknown',
         synopsis: attr.synopsis || '',
         genres: [],
+        genre: 'Anime',
         year: attr.startDate ? new Date(attr.startDate).getFullYear() : null,
       };
     }
@@ -227,5 +338,6 @@ async function getAnimeById(malId) {
 module.exports = {
   searchAnime,
   getTrendingAnime,
+  getOngoingAnime,
   getAnimeById,
 };

@@ -44,6 +44,26 @@ async function getTrending(req, res) {
   }
 }
 
+async function getOngoing(req, res) {
+  try {
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 8;
+    const results = await animeService.getOngoingAnime(page, limit);
+    return res.status(200).json({
+      success: true,
+      data: results.data,
+      pagination: results.pagination,
+    });
+  } catch (error) {
+    console.error('Error fetching ongoing anime:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error fetching ongoing anime',
+      error: error.message,
+    });
+  }
+}
+
 async function getDetails(req, res) {
   try {
     const { malId } = req.params;
@@ -73,5 +93,6 @@ async function getDetails(req, res) {
 module.exports = {
   search,
   getTrending,
+  getOngoing,
   getDetails,
 };

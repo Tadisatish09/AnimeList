@@ -20,7 +20,11 @@ import {
   AlertCircle,
   Filter,
   Tag,
-  BookOpen
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  Radio,
+  X
 } from 'lucide-react';
 
 const GENRE_OPTIONS = [
@@ -55,6 +59,17 @@ export default function Dashboard() {
   // Live Dynamic Trending Anime from Jikan API
   const [trendingAnime, setTrendingAnime] = useState([]);
   const [loadingTrending, setLoadingTrending] = useState(false);
+
+  // Live Ongoing Season Anime from Jikan API with Pagination
+  const [ongoingAnime, setOngoingAnime] = useState([]);
+  const [ongoingPage, setOngoingPage] = useState(1);
+  const [ongoingPagination, setOngoingPagination] = useState({
+    current_page: 1,
+    has_next_page: false,
+    last_visible_page: 1,
+    total_items: 0,
+  });
+  const [loadingOngoing, setLoadingOngoing] = useState(false);
 
   const [watchlist, setWatchlist] = useState([]);
   const [watchedList, setWatchedList] = useState([]);
@@ -95,6 +110,27 @@ export default function Dashboard() {
     };
     fetchTrending();
   }, []);
+
+  // Fetch Live Ongoing Anime with Pagination
+  const fetchOngoing = async (page = 1) => {
+    setLoadingOngoing(true);
+    try {
+      const res = await animeApi.getOngoing(page, 8);
+      setOngoingAnime(res.data.data || []);
+      if (res.data.pagination) {
+        setOngoingPagination(res.data.pagination);
+      }
+    } catch (err) {
+      console.error('Failed to load ongoing anime:', err);
+    } finally {
+      setLoadingOngoing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOngoing(ongoingPage);
+  }, [ongoingPage]);
+
 
   // Load Watchlist & Watched Lists
   const fetchUserData = async () => {
@@ -455,22 +491,50 @@ export default function Dashboard() {
             {/* Search Bar */}
             <form
               onSubmit={(e) => { e.preventDefault(); handleSearch(); }}
-              style={{ display: 'flex', gap: '12px', maxWidth: '650px', marginBottom: '28px' }}
+              style={{ display: 'flex', gap: '12px', maxWidth: '680px', marginBottom: '28px' }}
             >
               <div className="input-field-wrapper" style={{ flexGrow: 1 }}>
                 <Search size={18} className="input-icon" />
                 <input
                   type="text"
                   className="input-field"
-                  placeholder="Search any anime (e.g. Demon Slayer, Death Note, One Piece)..."
+                  placeholder="Search any anime (e.g. Demon Slayer, Solo Leveling, One Piece)..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearchQuery('');
+                      setHasSearched(false);
+                      setSearchResults([]);
+                    }}
+                    className="input-action-btn"
+                    title="Clear query"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
               </div>
               <button type="submit" className="btn btn-primary" disabled={searching}>
                 {searching ? <div className="spinner" /> : <Search size={18} />}
                 <span>Search</span>
               </button>
+              {hasSearched && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHasSearched(false);
+                    setSearchQuery('');
+                    setSearchResults([]);
+                  }}
+                  className="btn btn-secondary"
+                  title="Return to Discover & Ongoing"
+                >
+                  Discover
+                </button>
+              )}
             </form>
 
             {/* Search Results Grid */}
@@ -480,146 +544,374 @@ export default function Dashboard() {
                 <p style={{ color: 'var(--text-muted)' }}>Searching external Anime database...</p>
               </div>
             ) : !hasSearched ? (
-              <div className="glass-panel" style={{ padding: '40px 24px', textAlign: 'center' }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }} className="badge badge-gold">
-                  <Flame size={14} /> Live Top Trending Anime
-                </div>
-                <h3 style={{ fontSize: '1.4rem', color: '#fff', marginBottom: '8px' }}>
-                  Discover Popular & Trending Anime
-                </h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', maxWidth: '520px', margin: '0 auto 24px' }}>
-                  Search for any title above or tap one of the live top 5 trending anime below fetched directly from the database:
-                </p>
-
-                {loadingTrending ? (
-                  <div style={{ padding: '20px 0' }}>
-                    <div className="spinner" style={{ margin: '0 auto 10px' }} />
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>Loading trending anime...</p>
+              <div>
+                {/* 1. Popular / Top Trending Section */}
+                <div className="glass-panel" style={{ padding: '36px 24px', textAlign: 'center', marginBottom: '40px' }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }} className="badge badge-gold">
+                    <Flame size={14} /> Live Top Trending Anime
                   </div>
-                ) : trendingAnime.length > 0 ? (
-                  <div>
-                    {/* Top 5 Trending Pills */}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center', marginBottom: '32px' }}>
-                      {trendingAnime.slice(0, 5).map((anime, idx) => (
-                        <button
-                          key={anime.mal_id || anime.title}
-                          type="button"
-                          onClick={() => {
-                            setSearchQuery(anime.title);
-                            handleSearch(anime.title);
-                          }}
-                          className="btn btn-secondary btn-sm"
-                          style={{
-                            borderRadius: '9999px',
-                            fontSize: '0.85rem',
-                            padding: '8px 16px',
-                            background: 'rgba(255,255,255,0.06)',
-                            border: '1px solid rgba(255,255,255,0.12)',
-                          }}
-                        >
-                          <span style={{ color: 'var(--gold)', fontWeight: 700 }}>#{idx + 1}</span> {anime.title}
-                        </button>
-                      ))}
+                  <h3 style={{ fontSize: '1.45rem', color: '#fff', marginBottom: '8px', fontWeight: 800 }}>
+                    Popular Anime
+                  </h3>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', maxWidth: '540px', margin: '0 auto 24px' }}>
+                    Search for any title above or tap one of the live top 5 trending anime below fetched directly from the database:
+                  </p>
+
+                  {loadingTrending ? (
+                    <div style={{ padding: '20px 0' }}>
+                      <div className="spinner" style={{ margin: '0 auto 10px' }} />
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>Loading trending anime...</p>
                     </div>
+                  ) : trendingAnime.length > 0 ? (
+                    <div>
+                      {/* Top 5 Trending Pills */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center', marginBottom: '28px' }}>
+                        {trendingAnime.slice(0, 5).map((anime, idx) => (
+                          <button
+                            key={anime.mal_id || anime.title}
+                            type="button"
+                            onClick={() => {
+                              setSearchQuery(anime.title);
+                              handleSearch(anime.title);
+                            }}
+                            className="btn btn-secondary btn-sm"
+                            style={{
+                              borderRadius: '9999px',
+                              fontSize: '0.85rem',
+                              padding: '8px 16px',
+                              background: 'rgba(255,255,255,0.06)',
+                              border: '1px solid rgba(255,255,255,0.12)',
+                            }}
+                          >
+                            <span style={{ color: 'var(--gold)', fontWeight: 700 }}>#{idx + 1}</span> {anime.title}
+                          </button>
+                        ))}
+                      </div>
 
-                    {/* Top 5 Trending Poster Cards Preview */}
-                    <div className="anime-grid" style={{ marginTop: '16px' }}>
-                      {trendingAnime.slice(0, 5).map((anime) => {
-                        const onWatchlist = isInWatchlist(anime.mal_id, anime.title);
-                        const isAlreadyWatched = isWatched(anime.mal_id, anime.title);
-                        const genreString = anime.genre || (Array.isArray(anime.genres) ? anime.genres.slice(0, 3).join(', ') : '');
+                      {/* Top 5 Trending Poster Cards Preview */}
+                      <div className="anime-grid">
+                        {trendingAnime.slice(0, 5).map((anime) => {
+                          const onWatchlist = isInWatchlist(anime.mal_id, anime.title);
+                          const isAlreadyWatched = isWatched(anime.mal_id, anime.title);
+                          const genreString = anime.genre || (Array.isArray(anime.genres) ? anime.genres.slice(0, 3).join(', ') : '');
 
-                        return (
-                          <div key={anime.mal_id || anime.title} className="anime-card">
-                            <div className="poster-container">
-                              {anime.image_url ? (
-                                <img src={anime.image_url} alt={anime.title} className="poster-img" loading="lazy" />
-                              ) : (
-                                <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)' }}>
-                                  No Cover
-                                </div>
-                              )}
-                              <div className="poster-overlay" />
-                              {anime.rating > 0 && (
-                                <div className="poster-rating">
-                                  <Star size={12} fill="#fbbf24" />
-                                  <span>{anime.rating}</span>
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="anime-card-content">
-                              <div>
-                                <h4 className="anime-title" title={anime.title}>{anime.title}</h4>
-                                <p className="anime-meta">
-                                  {anime.episodes ? `${anime.episodes} Episodes` : 'Series'} • Trending
-                                </p>
-                                {genreString && (
-                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
-                                    {genreString.split(',').slice(0, 2).map((g) => (
-                                      <span key={g} style={{
-                                        fontSize: '0.7rem',
-                                        background: 'rgba(99,102,241,0.15)',
-                                        color: '#a5b4fc',
-                                        padding: '2px 6px',
-                                        borderRadius: '4px',
-                                        fontWeight: 600,
-                                      }}>
-                                        {g.trim()}
-                                      </span>
-                                    ))}
+                          return (
+                            <div key={anime.mal_id || anime.title} className="anime-card" style={{ textAlign: 'left' }}>
+                              <div className="poster-container">
+                                {anime.image_url ? (
+                                  <img src={anime.image_url} alt={anime.title} className="poster-img" loading="lazy" />
+                                ) : (
+                                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)' }}>
+                                    No Cover
                                   </div>
                                 )}
-                                {anime.synopsis && (
-                                  <p style={{
-                                    fontSize: '0.78rem',
-                                    color: 'var(--text-dim)',
-                                    lineHeight: '1.35',
-                                    display: '-webkit-box',
-                                    WebkitLineClamp: 2,
-                                    WebkitBoxOrient: 'vertical',
-                                    overflow: 'hidden',
-                                    marginBottom: '10px',
-                                  }}>
-                                    {anime.synopsis}
-                                  </p>
+                                <div className="poster-overlay" />
+                                {anime.rating > 0 && (
+                                  <div className="poster-rating">
+                                    <Star size={12} fill="#fbbf24" />
+                                    <span>{anime.rating}</span>
+                                  </div>
                                 )}
                               </div>
 
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
-                                <button
-                                  onClick={() => handleAddToWatchlist(anime)}
-                                  disabled={onWatchlist || isAlreadyWatched}
-                                  className={`btn btn-sm ${onWatchlist ? 'btn-secondary' : 'btn-primary'}`}
-                                >
-                                  <Bookmark size={14} />
-                                  <span>{onWatchlist ? 'In Watchlist' : 'Add to Watchlist'}</span>
-                                </button>
+                              <div className="anime-card-content">
+                                <div>
+                                  <h4 className="anime-title" title={anime.title}>{anime.title}</h4>
+                                  <p className="anime-meta">
+                                    {anime.episodes ? `${anime.episodes} Episodes` : 'Series'} • Trending
+                                  </p>
+                                  {genreString && (
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
+                                      {genreString.split(',').slice(0, 2).map((g) => (
+                                        <span key={g} style={{
+                                          fontSize: '0.7rem',
+                                          background: 'rgba(99,102,241,0.15)',
+                                          color: '#a5b4fc',
+                                          padding: '2px 6px',
+                                          borderRadius: '4px',
+                                          fontWeight: 600,
+                                        }}>
+                                          {g.trim()}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {anime.synopsis && (
+                                    <p style={{
+                                      fontSize: '0.78rem',
+                                      color: 'var(--text-dim)',
+                                      lineHeight: '1.35',
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: 'vertical',
+                                      overflow: 'hidden',
+                                      marginBottom: '10px',
+                                    }}>
+                                      {anime.synopsis}
+                                    </p>
+                                  )}
+                                </div>
 
-                                <button
-                                  onClick={() => {
-                                    setSelectedAnimeForRating(anime);
-                                    setIsEditingWatched(false);
-                                  }}
-                                  className={`btn btn-sm ${isAlreadyWatched ? 'btn-secondary' : 'btn-cyan'}`}
-                                >
-                                  <CheckCircle2 size={14} />
-                                  <span>{isAlreadyWatched ? 'Watched' : 'Mark Watched'}</span>
-                                </button>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                                  <button
+                                    onClick={() => handleAddToWatchlist(anime)}
+                                    disabled={onWatchlist || isAlreadyWatched}
+                                    className={`btn btn-sm ${onWatchlist ? 'btn-secondary' : 'btn-primary'}`}
+                                  >
+                                    <Bookmark size={14} />
+                                    <span>{onWatchlist ? 'In Watchlist' : 'Add to Watchlist'}</span>
+                                  </button>
+
+                                  <button
+                                    onClick={() => {
+                                      setSelectedAnimeForRating(anime);
+                                      setIsEditingWatched(false);
+                                    }}
+                                    className={`btn btn-sm ${isAlreadyWatched ? 'btn-secondary' : 'btn-cyan'}`}
+                                  >
+                                    <CheckCircle2 size={14} />
+                                    <span>{isAlreadyWatched ? 'Watched' : 'Mark Watched'}</span>
+                                  </button>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
+                  ) : null}
+                </div>
+
+                {/* 2. Ongoing Anime Section with Pagination */}
+                <div style={{ marginTop: '36px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{
+                        width: '42px',
+                        height: '42px',
+                        borderRadius: '12px',
+                        background: 'rgba(6, 182, 212, 0.15)',
+                        border: '1px solid rgba(6, 182, 212, 0.3)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--cyan)'
+                      }}>
+                        <Radio size={22} />
+                      </div>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <h2 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>
+                            Ongoing
+                          </h2>
+                          <div className="badge badge-cyan" style={{ fontSize: '0.72rem', padding: '3px 8px' }}>
+                            <div className="pulse-dot" style={{ marginRight: '4px' }} /> Airing Now
+                          </div>
+                        </div>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.86rem' }}>
+                          Currently broadcasting anime from the ongoing season (Live Jikan API)
+                        </p>
+                      </div>
+                    </div>
+
+                    {ongoingPagination.last_visible_page ? (
+                      <div style={{ fontSize: '0.85rem', color: 'var(--text-dim)', background: 'var(--bg-card)', padding: '6px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+                        Page <span style={{ color: '#fff', fontWeight: 700 }}>{ongoingPage}</span> of <span style={{ color: '#fff', fontWeight: 700 }}>{ongoingPagination.last_visible_page}</span>
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
+
+                  {loadingOngoing ? (
+                    <div style={{ textAlign: 'center', padding: '60px 0' }}>
+                      <div className="spinner" style={{ margin: '0 auto 16px', width: '32px', height: '32px' }} />
+                      <p style={{ color: 'var(--text-muted)' }}>Loading ongoing anime for page {ongoingPage}...</p>
+                    </div>
+                  ) : ongoingAnime.length === 0 ? (
+                    <div className="glass-panel" style={{ padding: '40px', textAlign: 'center' }}>
+                      <Tv size={36} style={{ color: 'var(--text-dim)', marginBottom: '10px' }} />
+                      <p style={{ color: 'var(--text-muted)' }}>No ongoing anime found at this moment.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="anime-grid">
+                        {ongoingAnime.map((anime) => {
+                          const onWatchlist = isInWatchlist(anime.mal_id, anime.title);
+                          const isAlreadyWatched = isWatched(anime.mal_id, anime.title);
+                          const genreString = anime.genre || (Array.isArray(anime.genres) ? anime.genres.slice(0, 3).join(', ') : '');
+
+                          return (
+                            <div key={anime.mal_id || anime.title} className="anime-card">
+                              <div className="poster-container">
+                                {anime.image_url ? (
+                                  <img src={anime.image_url} alt={anime.title} className="poster-img" loading="lazy" />
+                                ) : (
+                                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)' }}>
+                                    No Cover
+                                  </div>
+                                )}
+                                <div className="poster-overlay" />
+                                <div style={{
+                                  position: 'absolute',
+                                  top: '10px',
+                                  left: '10px',
+                                  background: 'rgba(6, 182, 212, 0.9)',
+                                  backdropFilter: 'blur(6px)',
+                                  color: '#fff',
+                                  fontSize: '0.68rem',
+                                  fontWeight: 700,
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.04em',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}>
+                                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#fff' }} />
+                                  Airing
+                                </div>
+                                {anime.rating > 0 && (
+                                  <div className="poster-rating">
+                                    <Star size={12} fill="#fbbf24" />
+                                    <span>{anime.rating}</span>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="anime-card-content">
+                                <div>
+                                  <h4 className="anime-title" title={anime.title}>{anime.title}</h4>
+                                  <p className="anime-meta">
+                                    {anime.episodes ? `${anime.episodes} Episodes` : 'Ongoing Series'} • {anime.year || 'Current Season'}
+                                  </p>
+                                  {genreString && (
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
+                                      {genreString.split(',').slice(0, 2).map((g) => (
+                                        <span key={g} style={{
+                                          fontSize: '0.7rem',
+                                          background: 'rgba(6, 182, 212, 0.15)',
+                                          color: '#67e8f9',
+                                          padding: '2px 6px',
+                                          borderRadius: '4px',
+                                          fontWeight: 600,
+                                        }}>
+                                          {g.trim()}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {anime.synopsis && (
+                                    <p style={{
+                                      fontSize: '0.78rem',
+                                      color: 'var(--text-dim)',
+                                      lineHeight: '1.35',
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: 'vertical',
+                                      overflow: 'hidden',
+                                      marginBottom: '10px',
+                                    }}>
+                                      {anime.synopsis}
+                                    </p>
+                                  )}
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                                  <button
+                                    onClick={() => handleAddToWatchlist(anime)}
+                                    disabled={onWatchlist || isAlreadyWatched}
+                                    className={`btn btn-sm ${onWatchlist ? 'btn-secondary' : 'btn-primary'}`}
+                                  >
+                                    <Bookmark size={14} />
+                                    <span>{onWatchlist ? 'In Watchlist' : 'Add to Watchlist'}</span>
+                                  </button>
+
+                                  <button
+                                    onClick={() => {
+                                      setSelectedAnimeForRating(anime);
+                                      setIsEditingWatched(false);
+                                    }}
+                                    className={`btn btn-sm ${isAlreadyWatched ? 'btn-secondary' : 'btn-cyan'}`}
+                                  >
+                                    <CheckCircle2 size={14} />
+                                    <span>{isAlreadyWatched ? 'Watched' : 'Mark Watched'}</span>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Pagination Controls */}
+                      <div className="pagination-container">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOngoingPage((p) => Math.max(1, p - 1));
+                          }}
+                          disabled={ongoingPage <= 1 || loadingOngoing}
+                          className="pagination-btn"
+                          title="Previous Page"
+                        >
+                          <ChevronLeft size={16} />
+                          <span>Prev</span>
+                        </button>
+
+                        {/* Direct Page Jump Buttons */}
+                        {(() => {
+                          const totalPages = ongoingPagination.last_visible_page || 1;
+                          const pages = [];
+                          const start = Math.max(1, ongoingPage - 2);
+                          const end = Math.min(totalPages, ongoingPage + 2);
+
+                          for (let i = start; i <= end; i++) {
+                            pages.push(
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => setOngoingPage(i)}
+                                disabled={loadingOngoing}
+                                className={`pagination-btn ${ongoingPage === i ? 'active' : ''}`}
+                              >
+                                {i}
+                              </button>
+                            );
+                          }
+                          return pages;
+                        })()}
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOngoingPage((p) => p + 1);
+                          }}
+                          disabled={!ongoingPagination.has_next_page || loadingOngoing}
+                          className="pagination-btn"
+                          title="Next Page"
+                        >
+                          <span>Next</span>
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             ) : searchResults.length === 0 ? (
               <div className="glass-panel" style={{ padding: '48px', textAlign: 'center' }}>
                 <Tv size={40} style={{ color: 'var(--text-dim)', marginBottom: '12px' }} />
                 <h3 style={{ fontSize: '1.2rem', color: '#fff', marginBottom: '6px' }}>No Anime Found</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Try searching for a different anime title or check spelling.</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '16px' }}>Try searching for a different anime title or check spelling.</p>
+                <button
+                  onClick={() => {
+                    setHasSearched(false);
+                    setSearchQuery('');
+                  }}
+                  className="btn btn-secondary btn-sm"
+                >
+                  Return to Popular & Ongoing
+                </button>
               </div>
             ) : (
               <div className="anime-grid">

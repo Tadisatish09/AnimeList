@@ -44,10 +44,11 @@ export const authApi = {
   getProfile: () => api.get('/profile'),
 };
 
-// Anime External Search & Trending
+// Anime External Search, Trending & Ongoing
 export const animeApi = {
   search: (query, limit = 12) => api.get('/anime/search', { params: { q: query, limit } }),
   getTrending: (limit = 5) => api.get('/anime/trending', { params: { limit } }),
+  getOngoing: (page = 1, limit = 8) => api.get('/anime/ongoing', { params: { page, limit } }),
   getDetails: (malId) => api.get(`/anime/${malId}`),
 };
 

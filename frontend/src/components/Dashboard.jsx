@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { animeApi, watchlistApi, watchedApi } from '../services/api';
 import RatingModal from './RatingModal';
@@ -17,8 +17,28 @@ import {
   Edit2,
   Tv,
   Check,
-  AlertCircle
+  AlertCircle,
+  Filter,
+  Tag,
+  BookOpen
 } from 'lucide-react';
+
+const GENRE_OPTIONS = [
+  'All Genres',
+  'Action',
+  'Adventure',
+  'Comedy',
+  'Drama',
+  'Fantasy',
+  'Romance',
+  'Sci-Fi',
+  'Supernatural',
+  'Mystery',
+  'Shounen',
+  'Slice of Life',
+  'Horror',
+  'Sports'
+];
 
 export default function Dashboard() {
   const { user, logout } = useAuth();
@@ -40,6 +60,13 @@ export default function Dashboard() {
   const [watchedList, setWatchedList] = useState([]);
   const [watchedSort, setWatchedSort] = useState('recent');
   const [loadingLists, setLoadingLists] = useState(false);
+
+  // In-list filters
+  const [watchlistSearch, setWatchlistSearch] = useState('');
+  const [watchlistGenre, setWatchlistGenre] = useState('All Genres');
+
+  const [watchedSearch, setWatchedSearch] = useState('');
+  const [watchedGenre, setWatchedGenre] = useState('All Genres');
 
   // Modal State
   const [selectedAnimeForRating, setSelectedAnimeForRating] = useState(null);
@@ -112,10 +139,15 @@ export default function Dashboard() {
   // Add to Watchlist
   const handleAddToWatchlist = async (anime) => {
     try {
+      const genre = anime.genre || (Array.isArray(anime.genres) ? anime.genres.join(', ') : null);
+      const description = anime.description || anime.synopsis || null;
+
       await watchlistApi.addToWatchlist({
         name: anime.title || anime.name,
         image_url: anime.image_url,
         mal_id: anime.mal_id,
+        genre,
+        description,
       });
       showToast(`Added "${anime.title || anime.name}" to your Watchlist!`);
       fetchUserData();
@@ -145,6 +177,8 @@ export default function Dashboard() {
           notes: payload.notes,
           start_date: payload.start_date,
           completed_date: payload.completed_date,
+          genre: payload.genre,
+          description: payload.description,
         });
         showToast(`Updated "${payload.title}" rating & review!`);
       } else {
@@ -168,6 +202,37 @@ export default function Dashboard() {
       showToast('Failed to delete item', 'error');
     }
   };
+
+  // Filtered Watchlist items
+  const filteredWatchlist = useMemo(() => {
+    return watchlist.filter((item) => {
+      const matchesSearch = !watchlistSearch || 
+        item.name?.toLowerCase().includes(watchlistSearch.toLowerCase()) ||
+        item.genre?.toLowerCase().includes(watchlistSearch.toLowerCase()) ||
+        item.description?.toLowerCase().includes(watchlistSearch.toLowerCase());
+      
+      const matchesGenre = watchlistGenre === 'All Genres' || 
+        item.genre?.toLowerCase().includes(watchlistGenre.toLowerCase());
+
+      return matchesSearch && matchesGenre;
+    });
+  }, [watchlist, watchlistSearch, watchlistGenre]);
+
+  // Filtered Watched items
+  const filteredWatched = useMemo(() => {
+    return watchedList.filter((item) => {
+      const matchesSearch = !watchedSearch || 
+        item.title?.toLowerCase().includes(watchedSearch.toLowerCase()) ||
+        item.genre?.toLowerCase().includes(watchedSearch.toLowerCase()) ||
+        item.description?.toLowerCase().includes(watchedSearch.toLowerCase()) ||
+        item.notes?.toLowerCase().includes(watchedSearch.toLowerCase());
+
+      const matchesGenre = watchedGenre === 'All Genres' || 
+        item.genre?.toLowerCase().includes(watchedGenre.toLowerCase());
+
+      return matchesSearch && matchesGenre;
+    });
+  }, [watchedList, watchedSearch, watchedGenre]);
 
   // Check if anime is in list helper
   const isInWatchlist = (malId, name) => {
@@ -257,7 +322,7 @@ export default function Dashboard() {
               }}>
                 {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
               </div>
-              <div style={{ display: 'none', md: 'block' }}>
+              <div>
                 <p style={{ fontSize: '0.88rem', fontWeight: 600, color: '#fff' }}>{user?.name}</p>
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{user?.email}</p>
               </div>
@@ -462,6 +527,7 @@ export default function Dashboard() {
                       {trendingAnime.slice(0, 5).map((anime) => {
                         const onWatchlist = isInWatchlist(anime.mal_id, anime.title);
                         const isAlreadyWatched = isWatched(anime.mal_id, anime.title);
+                        const genreString = anime.genre || (Array.isArray(anime.genres) ? anime.genres.slice(0, 3).join(', ') : '');
 
                         return (
                           <div key={anime.mal_id || anime.title} className="anime-card">
@@ -488,6 +554,36 @@ export default function Dashboard() {
                                 <p className="anime-meta">
                                   {anime.episodes ? `${anime.episodes} Episodes` : 'Series'} • Trending
                                 </p>
+                                {genreString && (
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
+                                    {genreString.split(',').slice(0, 2).map((g) => (
+                                      <span key={g} style={{
+                                        fontSize: '0.7rem',
+                                        background: 'rgba(99,102,241,0.15)',
+                                        color: '#a5b4fc',
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        fontWeight: 600,
+                                      }}>
+                                        {g.trim()}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                {anime.synopsis && (
+                                  <p style={{
+                                    fontSize: '0.78rem',
+                                    color: 'var(--text-dim)',
+                                    lineHeight: '1.35',
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                    marginBottom: '10px',
+                                  }}>
+                                    {anime.synopsis}
+                                  </p>
+                                )}
                               </div>
 
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
@@ -530,6 +626,7 @@ export default function Dashboard() {
                 {searchResults.map((anime) => {
                   const onWatchlist = isInWatchlist(anime.mal_id, anime.title);
                   const isAlreadyWatched = isWatched(anime.mal_id, anime.title);
+                  const genreString = anime.genre || (Array.isArray(anime.genres) ? anime.genres.slice(0, 3).join(', ') : '');
 
                   return (
                     <div key={anime.mal_id || anime.title} className="anime-card">
@@ -556,6 +653,36 @@ export default function Dashboard() {
                           <p className="anime-meta">
                             {anime.episodes ? `${anime.episodes} Episodes` : 'Series'} • {anime.year || 'Anime'}
                           </p>
+                          {genreString && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
+                              {genreString.split(',').slice(0, 2).map((g) => (
+                                <span key={g} style={{
+                                  fontSize: '0.7rem',
+                                  background: 'rgba(99,102,241,0.15)',
+                                  color: '#a5b4fc',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  fontWeight: 600,
+                                }}>
+                                  {g.trim()}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {anime.synopsis && (
+                            <p style={{
+                              fontSize: '0.78rem',
+                              color: 'var(--text-dim)',
+                              lineHeight: '1.35',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                              marginBottom: '10px',
+                            }}>
+                              {anime.synopsis}
+                            </p>
+                          )}
                         </div>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
@@ -591,15 +718,50 @@ export default function Dashboard() {
         {/* TAB 2: My Watchlist */}
         {activeTab === 'watchlist' && (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '14px' }}>
               <div>
                 <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#fff' }}>My Watchlist</h2>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>Anime you are planning or eager to watch.</p>
               </div>
-              <button onClick={() => setActiveTab('search')} className="btn btn-primary btn-sm">
-                <Plus size={16} />
-                <span>Search & Add Anime</span>
-              </button>
+
+              {/* In-List Search & Filter Controls */}
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <div className="input-field-wrapper" style={{ width: '220px' }}>
+                  <Search size={15} className="input-icon" />
+                  <input
+                    type="text"
+                    className="input-field"
+                    style={{ padding: '7px 10px 7px 34px', fontSize: '0.85rem' }}
+                    placeholder="Filter watchlist..."
+                    value={watchlistSearch}
+                    onChange={(e) => setWatchlistSearch(e.target.value)}
+                  />
+                </div>
+
+                <select
+                  value={watchlistGenre}
+                  onChange={(e) => setWatchlistGenre(e.target.value)}
+                  style={{
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--text-main)',
+                    padding: '7px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '0.85rem',
+                    outline: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {GENRE_OPTIONS.map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+
+                <button onClick={() => setActiveTab('search')} className="btn btn-primary btn-sm">
+                  <Plus size={16} />
+                  <span>Search & Add</span>
+                </button>
+              </div>
             </div>
 
             {watchlist.length === 0 ? (
@@ -614,9 +776,15 @@ export default function Dashboard() {
                   <span>Discover Anime Now</span>
                 </button>
               </div>
+            ) : filteredWatchlist.length === 0 ? (
+              <div className="glass-panel" style={{ padding: '40px 20px', textAlign: 'center' }}>
+                <Filter size={36} style={{ color: 'var(--text-dim)', marginBottom: '12px' }} />
+                <h3 style={{ fontSize: '1.15rem', color: '#fff', marginBottom: '6px' }}>No Matching Watchlist Items</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No anime match your filter or search query.</p>
+              </div>
             ) : (
               <div className="anime-grid">
-                {watchlist.map((item) => (
+                {filteredWatchlist.map((item) => (
                   <div key={item.id} className="anime-card">
                     <div className="poster-container">
                       {item.image_url ? (
@@ -635,6 +803,38 @@ export default function Dashboard() {
                         <p className="anime-meta">
                           Added {new Date(item.created_at).toLocaleDateString()}
                         </p>
+
+                        {item.genre && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
+                            {item.genre.split(',').slice(0, 2).map((g) => (
+                              <span key={g} style={{
+                                fontSize: '0.7rem',
+                                background: 'rgba(99,102,241,0.15)',
+                                color: '#a5b4fc',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontWeight: 600,
+                              }}>
+                                {g.trim()}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {item.description && (
+                          <p style={{
+                            fontSize: '0.78rem',
+                            color: 'var(--text-dim)',
+                            lineHeight: '1.35',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            marginBottom: '10px',
+                          }}>
+                            {item.description}
+                          </p>
+                        )}
                       </div>
 
                       <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
@@ -669,15 +869,45 @@ export default function Dashboard() {
         {/* TAB 3: Completed / Watched List */}
         {activeTab === 'watched' && (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '14px' }}>
               <div>
                 <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#fff' }}>Completed Anime</h2>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>Your logged anime journeys, personal ratings, and notes.</p>
               </div>
 
-              {/* Sort Filter */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-dim)' }}>Sort By:</span>
+              {/* In-List Search, Genre, and Sorting Controls */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <div className="input-field-wrapper" style={{ width: '200px' }}>
+                  <Search size={15} className="input-icon" />
+                  <input
+                    type="text"
+                    className="input-field"
+                    style={{ padding: '7px 10px 7px 34px', fontSize: '0.85rem' }}
+                    placeholder="Search completed..."
+                    value={watchedSearch}
+                    onChange={(e) => setWatchedSearch(e.target.value)}
+                  />
+                </div>
+
+                <select
+                  value={watchedGenre}
+                  onChange={(e) => setWatchedGenre(e.target.value)}
+                  style={{
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--text-main)',
+                    padding: '7px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '0.85rem',
+                    outline: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {GENRE_OPTIONS.map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+
                 <select
                   value={watchedSort}
                   onChange={(e) => setWatchedSort(e.target.value)}
@@ -685,7 +915,7 @@ export default function Dashboard() {
                     background: 'var(--bg-card)',
                     border: '1px solid var(--border-color)',
                     color: 'var(--text-main)',
-                    padding: '8px 12px',
+                    padding: '7px 12px',
                     borderRadius: 'var(--radius-md)',
                     fontSize: '0.85rem',
                     outline: 'none',
@@ -712,9 +942,15 @@ export default function Dashboard() {
                   <span>Search Anime to Log</span>
                 </button>
               </div>
+            ) : filteredWatched.length === 0 ? (
+              <div className="glass-panel" style={{ padding: '40px 20px', textAlign: 'center' }}>
+                <Filter size={36} style={{ color: 'var(--text-dim)', marginBottom: '12px' }} />
+                <h3 style={{ fontSize: '1.15rem', color: '#fff', marginBottom: '6px' }}>No Matching Completed Anime</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No anime match your filter or search query.</p>
+              </div>
             ) : (
               <div className="anime-grid">
-                {watchedList.map((item) => (
+                {filteredWatched.map((item) => (
                   <div key={item.id} className="anime-card">
                     <div className="poster-container">
                       {item.image_url ? (
@@ -737,6 +973,39 @@ export default function Dashboard() {
                         <p className="anime-meta">
                           Finished {item.completed_date ? new Date(item.completed_date).toLocaleDateString() : 'Completed'}
                         </p>
+
+                        {item.genre && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
+                            {item.genre.split(',').slice(0, 2).map((g) => (
+                              <span key={g} style={{
+                                fontSize: '0.7rem',
+                                background: 'rgba(99,102,241,0.15)',
+                                color: '#a5b4fc',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontWeight: 600,
+                              }}>
+                                {g.trim()}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {item.description && (
+                          <p style={{
+                            fontSize: '0.78rem',
+                            color: 'var(--text-dim)',
+                            lineHeight: '1.35',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            marginBottom: '8px',
+                          }}>
+                            {item.description}
+                          </p>
+                        )}
+
                         {item.notes && (
                           <div style={{
                             background: 'rgba(0,0,0,0.35)',

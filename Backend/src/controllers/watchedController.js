@@ -13,6 +13,10 @@ async function addToWatched(req, res) {
     const notes = req.body.notes || null;
     const malId = req.body.mal_id || req.body.malId || null;
     const imageUrl = req.body.image_url || req.body.imageUrl || null;
+    const genre = Array.isArray(req.body.genres || req.body.genre)
+      ? (req.body.genres || req.body.genre).join(', ')
+      : (req.body.genre || req.body.genres || null);
+    const description = req.body.description || req.body.synopsis || null;
     const removeFromWatchlist = req.body.remove_from_watchlist === true || req.body.removeFromWatchlist === true;
 
     if (!title || typeof title !== 'string' || !title.trim()) {
@@ -26,9 +30,9 @@ async function addToWatched(req, res) {
     const trimmedTitle = title.trim().slice(0, 75);
 
     const [result] = await db.promise().query(
-      `INSERT INTO watched (title, rating, start_date, completed_date, notes, mal_id, user_id, image_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [trimmedTitle, rating, startDate, completedDate, notes, malId, userId || null, imageUrl]
+      `INSERT INTO watched (title, rating, start_date, completed_date, notes, mal_id, user_id, image_url, genre, description)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [trimmedTitle, rating, startDate, completedDate, notes, malId, userId || null, imageUrl, genre, description]
     );
 
     // If requested, clean up matching entry from watch_list
@@ -58,12 +62,14 @@ async function addToWatched(req, res) {
 }
 
 /**
- * Get all watched anime for the user.
+ * Get all watched anime for the user with optional genre filtering and sorting.
  */
 async function getWatched(req, res) {
   try {
     const userId = req.user?.id;
     const sort = req.query.sort || 'recent';
+    const genreFilter = req.query.genre;
+    const searchTerm = req.query.search;
 
     let orderBy = 'ORDER BY completed_date DESC, id DESC';
     if (sort === 'rating_desc') {
@@ -74,15 +80,29 @@ async function getWatched(req, res) {
       orderBy = 'ORDER BY title ASC';
     }
 
-    let query = `SELECT * FROM watched`;
+    let whereClauses = [];
     let params = [];
 
     if (userId) {
-      query += ` WHERE user_id = ? OR user_id IS NULL ${orderBy}`;
+      whereClauses.push('(user_id = ? OR user_id IS NULL)');
       params.push(userId);
-    } else {
-      query += ` ${orderBy}`;
     }
+
+    if (genreFilter && genreFilter !== 'all') {
+      whereClauses.push('genre LIKE ?');
+      params.push(`%${genreFilter}%`);
+    }
+
+    if (searchTerm) {
+      whereClauses.push('(title LIKE ? OR description LIKE ? OR notes LIKE ?)');
+      params.push(`%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`);
+    }
+
+    let query = 'SELECT * FROM watched';
+    if (whereClauses.length > 0) {
+      query += ` WHERE ${whereClauses.join(' AND ')}`;
+    }
+    query += ` ${orderBy}`;
 
     const [items] = await db.promise().query(query, params);
 
@@ -101,13 +121,13 @@ async function getWatched(req, res) {
 }
 
 /**
- * Update rating, notes, or dates of a watched anime.
+ * Update rating, notes, dates, genre, or description of a watched anime.
  */
 async function updateWatched(req, res) {
   try {
     const userId = req.user?.id;
     const { id } = req.params;
-    const { rating, notes, start_date, completed_date } = req.body;
+    const { rating, notes, start_date, completed_date, genre, description } = req.body;
 
     if (!id) {
       return res.status(400).json({ message: 'Watched item ID is required' });
@@ -139,6 +159,16 @@ async function updateWatched(req, res) {
     if (completed_date !== undefined) {
       fields.push('completed_date = ?');
       values.push(completed_date || null);
+    }
+
+    if (genre !== undefined) {
+      fields.push('genre = ?');
+      values.push(genre || null);
+    }
+
+    if (description !== undefined) {
+      fields.push('description = ?');
+      values.push(description || null);
     }
 
     if (fields.length === 0) {

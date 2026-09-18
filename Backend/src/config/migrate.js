@@ -44,6 +44,8 @@ async function runMigrations() {
         name VARCHAR(75) NULL,
         image_url TEXT NULL,
         mal_id INT NULL,
+        genre VARCHAR(255) NULL,
+        description TEXT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -59,7 +61,9 @@ async function runMigrations() {
         completed_date DATE NULL,
         notes TEXT NULL,
         mal_id INT NULL,
-        image_url TEXT NULL
+        image_url TEXT NULL,
+        genre VARCHAR(255) NULL,
+        description TEXT NULL
       )
     `);
 
@@ -78,8 +82,13 @@ async function runMigrations() {
     // 5. Ensure missing columns exist
     await checkAndAddColumn('watch_list', 'user_id', 'INT NULL');
     await checkAndAddColumn('watch_list', 'mal_id', 'INT NULL');
+    await checkAndAddColumn('watch_list', 'genre', 'VARCHAR(255) NULL');
+    await checkAndAddColumn('watch_list', 'description', 'TEXT NULL');
+
     await checkAndAddColumn('watched', 'user_id', 'INT NULL');
     await checkAndAddColumn('watched', 'image_url', 'TEXT NULL');
+    await checkAndAddColumn('watched', 'genre', 'VARCHAR(255) NULL');
+    await checkAndAddColumn('watched', 'description', 'TEXT NULL');
 
     // 6. Seed default API configurations if empty
     const [existingConfigs] = await db.promise().query('SELECT id FROM api_configs LIMIT 1');

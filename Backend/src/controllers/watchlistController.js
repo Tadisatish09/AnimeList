@@ -9,6 +9,10 @@ async function addToWatchlist(req, res) {
     const name = req.body.name || req.body.title;
     const imageUrl = req.body.image_url || req.body.imageUrl || null;
     const malId = req.body.mal_id || req.body.malId || null;
+    const genre = Array.isArray(req.body.genres || req.body.genre)
+      ? (req.body.genres || req.body.genre).join(', ')
+      : (req.body.genre || req.body.genres || null);
+    const description = req.body.description || req.body.synopsis || null;
 
     if (!name || typeof name !== 'string' || !name.trim()) {
       return res.status(400).json({ message: 'Anime name/title is required' });
@@ -28,8 +32,8 @@ async function addToWatchlist(req, res) {
     }
 
     const [result] = await db.promise().query(
-      'INSERT INTO watch_list (name, image_url, mal_id, user_id) VALUES (?, ?, ?, ?)',
-      [trimmedName, imageUrl, malId, userId || null]
+      'INSERT INTO watch_list (name, image_url, mal_id, genre, description, user_id) VALUES (?, ?, ?, ?, ?, ?)',
+      [trimmedName, imageUrl, malId, genre, description, userId || null]
     );
 
     const [newItem] = await db.promise().query(

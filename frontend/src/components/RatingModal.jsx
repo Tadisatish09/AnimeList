@@ -26,6 +26,8 @@ export default function RatingModal({ anime, isEditing = false, onClose, onSubmi
         notes: notes || null,
         mal_id: anime?.mal_id || null,
         image_url: anime?.image_url || null,
+        genre: anime?.genre || (Array.isArray(anime?.genres) ? anime.genres.join(', ') : null),
+        description: anime?.description || anime?.synopsis || null,
         remove_from_watchlist: removeFromWatchlist,
       });
       onClose();

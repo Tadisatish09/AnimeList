@@ -122,6 +122,9 @@ async function getTrendingAnime(limit = 6) {
         rating: item.score || 0,
         episodes: item.episodes || null,
         status: item.status || 'Unknown',
+        synopsis: item.synopsis || '',
+        genres: (item.genres || []).map((g) => g.name),
+        genre: (item.genres || []).map((g) => g.name).join(', '),
       }));
     }
   } catch (jikanErr) {
@@ -147,6 +150,9 @@ async function getTrendingAnime(limit = 6) {
           rating: score,
           episodes: attr.episodeCount || null,
           status: attr.status || 'Unknown',
+          synopsis: attr.synopsis || '',
+          genres: [],
+          genre: 'Anime',
         };
       });
     }

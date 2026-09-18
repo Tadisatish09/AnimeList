@@ -24,7 +24,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Radio,
-  X
+  X,
+  Clock
 } from 'lucide-react';
 
 const GENRE_OPTIONS = [
@@ -44,11 +45,41 @@ const GENRE_OPTIONS = [
   'Sports'
 ];
 
+const WEEKDAYS = [
+  { key: 'monday', label: 'Monday', short: 'Mon' },
+  { key: 'tuesday', label: 'Tuesday', short: 'Tue' },
+  { key: 'wednesday', label: 'Wednesday', short: 'Wed' },
+  { key: 'thursday', label: 'Thursday', short: 'Thu' },
+  { key: 'friday', label: 'Friday', short: 'Fri' },
+  { key: 'saturday', label: 'Saturday', short: 'Sat' },
+  { key: 'sunday', label: 'Sunday', short: 'Sun' },
+];
+
+function getWeekdayDates() {
+  const dayKeys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const now = new Date();
+  const currentDayIndex = now.getDay();
+  const todayKey = dayKeys[currentDayIndex];
+
+  return WEEKDAYS.map((day) => {
+    const targetIndex = dayKeys.indexOf(day.key);
+    const diff = targetIndex - currentDayIndex;
+    const dateObj = new Date(now);
+    dateObj.setDate(now.getDate() + diff);
+
+    return {
+      ...day,
+      dateString: dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      isToday: day.key === todayKey,
+    };
+  });
+}
+
 export default function Dashboard() {
   const { user, logout } = useAuth();
 
   // Navigation State
-  const [activeTab, setActiveTab] = useState('search'); // 'search' | 'watchlist' | 'watched'
+  const [activeTab, setActiveTab] = useState('search'); // 'search' | 'schedule' | 'watchlist' | 'watched'
 
   // Data States
   const [searchQuery, setSearchQuery] = useState('');
@@ -70,6 +101,18 @@ export default function Dashboard() {
     total_items: 0,
   });
   const [loadingOngoing, setLoadingOngoing] = useState(false);
+
+  // Weekly Schedule State
+  const weekdayDates = useMemo(() => getWeekdayDates(), []);
+  const todayWeekday = useMemo(() => {
+    const dayKeys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    return dayKeys[new Date().getDay()] || 'monday';
+  }, []);
+
+  const [selectedScheduleDay, setSelectedScheduleDay] = useState(todayWeekday);
+  const [scheduleAnime, setScheduleAnime] = useState([]);
+  const [scheduleDate, setScheduleDate] = useState('');
+  const [loadingSchedule, setLoadingSchedule] = useState(false);
 
   const [watchlist, setWatchlist] = useState([]);
   const [watchedList, setWatchedList] = useState([]);
@@ -115,7 +158,7 @@ export default function Dashboard() {
   const fetchOngoing = async (page = 1) => {
     setLoadingOngoing(true);
     try {
-      const res = await animeApi.getOngoing(page, 8);
+      const res = await animeApi.getOngoing(page, 10);
       setOngoingAnime(res.data.data || []);
       if (res.data.pagination) {
         setOngoingPagination(res.data.pagination);
@@ -130,6 +173,27 @@ export default function Dashboard() {
   useEffect(() => {
     fetchOngoing(ongoingPage);
   }, [ongoingPage]);
+
+  // Fetch Weekly Schedule by Day
+  const fetchSchedule = async (day) => {
+    setLoadingSchedule(true);
+    try {
+      const res = await animeApi.getSchedule(day, 1, 25);
+      setScheduleAnime(res.data.data || []);
+      setScheduleDate(res.data.date || '');
+    } catch (err) {
+      console.error('Failed to load weekly schedule:', err);
+      showToast('Could not load schedule for ' + day, 'error');
+    } finally {
+      setLoadingSchedule(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'schedule') {
+      fetchSchedule(selectedScheduleDay);
+    }
+  }, [activeTab, selectedScheduleDay]);
 
 
   // Load Watchlist & Watched Lists
@@ -440,6 +504,27 @@ export default function Dashboard() {
           >
             <Search size={18} />
             <span>Search & Discover</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('schedule')}
+            style={{
+              padding: '10px 18px',
+              borderRadius: 'var(--radius-md)',
+              border: 'none',
+              background: activeTab === 'schedule' ? 'rgba(99,102,241,0.2)' : 'transparent',
+              color: activeTab === 'schedule' ? '#fff' : 'var(--text-muted)',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              transition: 'all 0.2s',
+              borderBottom: activeTab === 'schedule' ? '2px solid var(--primary)' : '2px solid transparent',
+            }}
+          >
+            <Calendar size={18} />
+            <span>Weekly Schedule</span>
           </button>
 
           <button
@@ -1007,7 +1092,197 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* TAB 2: My Watchlist */}
+        {/* TAB 2: Weekly Schedule */}
+        {activeTab === 'schedule' && (
+          <div>
+            <div style={{ marginBottom: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                <h2 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#fff' }}>Weekly Release Calendar</h2>
+                <span className="badge badge-cyan" style={{ fontSize: '0.72rem', padding: '3px 8px' }}>
+                  Live Broadcasts
+                </span>
+              </div>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                Browse anime episodes releasing each day of the week fetched live from the Jikan / MyAnimeList Schedule API.
+              </p>
+            </div>
+
+            {/* 7-Day Selector Bar */}
+            <div className="day-selector-bar">
+              {weekdayDates.map((d) => (
+                <button
+                  key={d.key}
+                  type="button"
+                  onClick={() => setSelectedScheduleDay(d.key)}
+                  className={`day-card-btn ${selectedScheduleDay === d.key ? 'active' : ''}`}
+                >
+                  <span className="day-card-name">{d.label}</span>
+                  <span className="day-card-date">{d.dateString}</span>
+                  {d.isToday && (
+                    <span className="day-card-today-badge">Today</span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Selected Day Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '20px',
+              flexWrap: 'wrap',
+              gap: '12px',
+              background: 'var(--bg-card)',
+              padding: '14px 18px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-color)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Clock size={18} style={{ color: 'var(--cyan)' }} />
+                <div>
+                  <span style={{ fontSize: '1.05rem', fontWeight: 700, color: '#fff', textTransform: 'capitalize' }}>
+                    {selectedScheduleDay} Releases
+                  </span>
+                  {scheduleDate && (
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-dim)', marginLeft: '10px' }}>
+                      ({scheduleDate})
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                {loadingSchedule ? 'Updating...' : `${scheduleAnime.length} Anime Airing`}
+              </div>
+            </div>
+
+            {/* Schedule Anime Content Grid */}
+            {loadingSchedule ? (
+              <div style={{ textAlign: 'center', padding: '60px 0' }}>
+                <div className="spinner" style={{ margin: '0 auto 16px', width: '32px', height: '32px' }} />
+                <p style={{ color: 'var(--text-muted)' }}>Loading {selectedScheduleDay} anime releases...</p>
+              </div>
+            ) : scheduleAnime.length === 0 ? (
+              <div className="glass-panel" style={{ padding: '48px', textAlign: 'center' }}>
+                <Calendar size={40} style={{ color: 'var(--text-dim)', marginBottom: '12px' }} />
+                <h3 style={{ fontSize: '1.2rem', color: '#fff', marginBottom: '6px' }}>No Releases Scheduled</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No anime broadcasting found for {selectedScheduleDay}.</p>
+              </div>
+            ) : (
+              <div className="anime-grid">
+                {scheduleAnime.map((anime) => {
+                  const onWatchlist = isInWatchlist(anime.mal_id, anime.title);
+                  const isAlreadyWatched = isWatched(anime.mal_id, anime.title);
+                  const genreString = anime.genre || (Array.isArray(anime.genres) ? anime.genres.slice(0, 3).join(', ') : '');
+
+                  return (
+                    <div key={anime.mal_id || anime.title} className="anime-card">
+                      <div className="poster-container">
+                        {anime.image_url ? (
+                          <img src={anime.image_url} alt={anime.title} className="poster-img" loading="lazy" />
+                        ) : (
+                          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)' }}>
+                            No Cover
+                          </div>
+                        )}
+                        <div className="poster-overlay" />
+
+                        {/* Day / Airing badge */}
+                        <div style={{
+                          position: 'absolute',
+                          top: '10px',
+                          left: '10px',
+                          background: 'rgba(99, 102, 241, 0.9)',
+                          backdropFilter: 'blur(6px)',
+                          color: '#fff',
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          textTransform: 'capitalize',
+                          letterSpacing: '0.04em',
+                        }}>
+                          {anime.broadcast_time ? `${selectedScheduleDay.slice(0, 3)} • ${anime.broadcast_time}` : selectedScheduleDay}
+                        </div>
+
+                        {anime.rating > 0 && (
+                          <div className="poster-rating">
+                            <Star size={12} fill="#fbbf24" />
+                            <span>{anime.rating}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="anime-card-content">
+                        <div>
+                          <h4 className="anime-title" title={anime.title}>{anime.title}</h4>
+                          <p className="anime-meta">
+                            {anime.broadcast ? anime.broadcast : `${anime.episodes ? `${anime.episodes} eps` : 'Weekly Airing'}`}
+                          </p>
+                          {genreString && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
+                              {genreString.split(',').slice(0, 2).map((g) => (
+                                <span key={g} style={{
+                                  fontSize: '0.7rem',
+                                  background: 'rgba(99,102,241,0.15)',
+                                  color: '#a5b4fc',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  fontWeight: 600,
+                                }}>
+                                  {g.trim()}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {anime.synopsis && (
+                            <p style={{
+                              fontSize: '0.78rem',
+                              color: 'var(--text-dim)',
+                              lineHeight: '1.35',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                              marginBottom: '10px',
+                            }}>
+                              {anime.synopsis}
+                            </p>
+                          )}
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+                          <button
+                            onClick={() => handleAddToWatchlist(anime)}
+                            disabled={onWatchlist || isAlreadyWatched}
+                            className={`btn btn-sm ${onWatchlist ? 'btn-secondary' : 'btn-primary'}`}
+                          >
+                            <Bookmark size={14} />
+                            <span>{onWatchlist ? 'In Watchlist' : 'Add to Watchlist'}</span>
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setSelectedAnimeForRating(anime);
+                              setIsEditingWatched(false);
+                            }}
+                            className={`btn btn-sm ${isAlreadyWatched ? 'btn-secondary' : 'btn-cyan'}`}
+                          >
+                            <CheckCircle2 size={14} />
+                            <span>{isAlreadyWatched ? 'Watched' : 'Mark Watched'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 3: My Watchlist */}
         {activeTab === 'watchlist' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '14px' }}>

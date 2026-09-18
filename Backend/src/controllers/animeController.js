@@ -47,7 +47,7 @@ async function getTrending(req, res) {
 async function getOngoing(req, res) {
   try {
     const page = parseInt(req.query.page, 10) || 1;
-    const limit = parseInt(req.query.limit, 10) || 8;
+    const limit = parseInt(req.query.limit, 10) || 10;
     const results = await animeService.getOngoingAnime(page, limit);
     return res.status(200).json({
       success: true,
@@ -59,6 +59,30 @@ async function getOngoing(req, res) {
     return res.status(500).json({
       success: false,
       message: 'Error fetching ongoing anime',
+      error: error.message,
+    });
+  }
+}
+
+async function getSchedule(req, res) {
+  try {
+    const day = req.query.day || 'monday';
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 20;
+
+    const results = await animeService.getWeeklySchedule(day, page, limit);
+    return res.status(200).json({
+      success: true,
+      day: results.day,
+      date: results.date,
+      count: results.data.length,
+      data: results.data,
+    });
+  } catch (error) {
+    console.error('Error fetching anime weekly schedule:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error fetching anime weekly schedule',
       error: error.message,
     });
   }
@@ -94,5 +118,6 @@ module.exports = {
   search,
   getTrending,
   getOngoing,
+  getSchedule,
   getDetails,
 };

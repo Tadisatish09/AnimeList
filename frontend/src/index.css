@@ -257,12 +257,40 @@ h1, h2, h3, h4, .brand-font {
   border: 1px solid rgba(6, 182, 212, 0.3);
 }
 
-/* Anime Card Grid */
+/* Anime Card Grid - 5 items per row */
 .anime-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 22px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 18px;
   margin-top: 24px;
+}
+
+@media (max-width: 1200px) {
+  .anime-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+@media (max-width: 960px) {
+  .anime-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+}
+
+@media (max-width: 680px) {
+  .anime-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+}
+
+@media (max-width: 440px) {
+  .anime-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
 }
 
 .anime-card {
@@ -504,4 +532,72 @@ h1, h2, h3, h4, .brand-font {
   0%, 100% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.4); opacity: 0.5; }
 }
+
+/* Schedule Day Selector */
+.day-selector-bar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+@media (max-width: 900px) {
+  .day-selector-bar {
+    display: flex;
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+}
+
+.day-card-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 12px 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 100px;
+}
+
+.day-card-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: rgba(99, 102, 241, 0.35);
+  transform: translateY(-2px);
+}
+
+.day-card-btn.active {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(6, 182, 212, 0.2) 100%);
+  border-color: var(--primary);
+  box-shadow: 0 0 20px var(--primary-glow);
+}
+
+.day-card-name {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.day-card-date {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.day-card-today-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, var(--cyan) 0%, #0891b2 100%);
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+}
+
 

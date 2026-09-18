@@ -27,9 +27,10 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('search'); // 'search' | 'watchlist' | 'watched'
 
   // Data States
-  const [searchQuery, setSearchQuery] = useState('Solo Leveling');
+  const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
   const [watchlist, setWatchlist] = useState([]);
   const [watchedList, setWatchedList] = useState([]);
@@ -70,17 +71,13 @@ export default function Dashboard() {
     fetchUserData();
   }, [watchedSort]);
 
-  // Initial search on mount
-  useEffect(() => {
-    handleSearch(searchQuery);
-  }, []);
-
   // Search Anime Handler
   const handleSearch = async (queryToSearch) => {
     const q = queryToSearch !== undefined ? queryToSearch : searchQuery;
-    if (!q.trim()) return;
+    if (!q || !q.trim()) return;
 
     setSearching(true);
+    setHasSearched(true);
     try {
       const res = await animeApi.search(q, 12);
       setSearchResults(res.data.data || []);
@@ -397,11 +394,35 @@ export default function Dashboard() {
                 <div className="spinner" style={{ margin: '0 auto 16px', width: '32px', height: '32px' }} />
                 <p style={{ color: 'var(--text-muted)' }}>Searching external Anime database...</p>
               </div>
+            ) : !hasSearched ? (
+              <div className="glass-panel" style={{ padding: '48px 24px', textAlign: 'center' }}>
+                <Sparkles size={40} style={{ color: 'var(--primary)', marginBottom: '14px' }} />
+                <h3 style={{ fontSize: '1.35rem', color: '#fff', marginBottom: '8px' }}>Search & Discover Anime</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', maxWidth: '480px', margin: '0 auto 24px' }}>
+                  Type any anime title above or tap a trending suggestion to find official cover posters, MAL ratings, and add to your vault.
+                </p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
+                  {['Solo Leveling', 'Attack on Titan', 'Jujutsu Kaisen', 'Demon Slayer', 'One Piece', 'Death Note', 'Chainsaw Man'].map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery(tag);
+                        handleSearch(tag);
+                      }}
+                      className="btn btn-secondary btn-sm"
+                      style={{ borderRadius: '9999px', fontSize: '0.82rem' }}
+                    >
+                      🔥 {tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ) : searchResults.length === 0 ? (
               <div className="glass-panel" style={{ padding: '48px', textAlign: 'center' }}>
                 <Tv size={40} style={{ color: 'var(--text-dim)', marginBottom: '12px' }} />
                 <h3 style={{ fontSize: '1.2rem', color: '#fff', marginBottom: '6px' }}>No Anime Found</h3>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Try searching for a different anime title.</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Try searching for a different anime title or check spelling.</p>
               </div>
             ) : (
               <div className="anime-grid">

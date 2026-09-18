@@ -58,12 +58,6 @@ export default function LoginView() {
     }
   };
 
-  const fillDemoCredentials = () => {
-    setEmail('demo@anivault.com');
-    setPassword('Password123');
-    setIsLoginMode(false);
-    setName('Otaku Master');
-  };
 
   return (
     <div style={{
@@ -343,23 +337,7 @@ export default function LoginView() {
             </button>
           </form>
 
-          {/* Quick Demo Autofill */}
-          <div style={{ marginTop: '20px', textAlign: 'center' }}>
-            <button
-              type="button"
-              onClick={fillDemoCredentials}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--cyan)',
-                fontSize: '0.82rem',
-                cursor: 'pointer',
-                textDecoration: 'underline',
-              }}
-            >
-              Want a quick test? Click to auto-fill sample details
-            </button>
-          </div>
+
         </div>
       </div>
     </div>
